@@ -1,14 +1,15 @@
 """
 Решение тестового задания Мегатрейдер
 
-Реализованны 2 функции (подробные описания в самих функциях):
-- megatrader - основная, реализация методом динамического программирования
+Реализованны 3 алгоритма (подробные описания в самих функциях):
+- megatrader - основная реализация - методом динамического программирования
 - brute_force - контрольная и для сравнения скорости, использующая полный перебор
+- greedy - жадный алгоритм, очень быстрый, но не гарантирующий наилучший результат
 
 --------------------
 Субъективная оценка сложности: 7
 Затраченное время: 2-3 часа основная реализация + тестирование, рефакторинг,
-                   документация и поэкспериментировать
+                   документация, замеры скорости и поэкспериментировать
 
 Test input:
 ---------------------
@@ -18,26 +19,42 @@ Test input:
 2 gazprom-17 100.0 2
 
 ---------------------
-Speed tests:
+Speed tests (MacBook Pro 2013):
 
-lots=100, money=10_000
+lots = 100, money = 10_000
 megatrader:     ~ 0.3 s
 brute_force:    ~ 0.05 - 1.2 s
+greedy:         ~ 0.0001 s
 
-lots=100, money=20_000
+lots = 100, money = 20_000
 megatrader:     ~ 0.7 s
 brute_force:    ~ 6 - 42 s
+greedy:         ~ 0.0001 s
 
-lots=200, money=10_000
+lots = 200, money = 10_000
 megatrader:     ~ 0.5 s
 brute_force:    ~ 3 - 36+ s
+greedy:         ~ 0.0001 s
 
+lots = 100, money = 100_000
+megatrader:     ~ 4.5 s
+greedy:         ~ 0.0001 s
+brute_force:    ~ ?
 
-megatrader:
-lots=100, money=100_000    ~ 4.5 s
-lots=1000, money=10_000    ~ 3 s
+lots = 1000, money = 10_000
+megatrader:     ~ 3 s
+greedy:         ~ 0.002 s
+brute_force:    ~ ?
 
-lots=1000, money=100_000   ~ 45 s
+lots = 1000, money = 100_000
+megatrader:     ~ 45 s
+greedy:         ~ 0.003 s
+brute_force:    ~ ?
+
+lots = 2_000_000, money = 100_000_000
+greedy:         ~ 4 s
+megatrader:     ~ ?
+brute_force:    ~ ?
 
 """
 
@@ -75,6 +92,41 @@ def brute_force(lst: list[tuple], money: float, n: int) -> float:
         return brute_force(lst, money, n - 1)
     else:
         return max(profit + brute_force(lst, money - worth, n - 1), brute_force(lst, money, n - 1))
+
+
+def greedy(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
+    """
+    Решение задачи с помощью жадного алгоритма (исключительно в целях эксперимента).
+    Список предварительно сортируем по соотношению профит / затраты в убывающем порядке.
+
+    Сложность алгоритма O(n * logn)
+    Расход памяти O(n)
+
+    Точность работы: 80-100 %
+
+    Известный недостаток реализации: порядок результата может немного не совпадать с порядком
+    исходного списка, считаю некритичным, тк в данной задаче это решение не является основным,
+    в связи с тем, что жадный алгоритм не обеспечивает наилучшее решение (зато работает быстро).
+    """
+    def sort_func(x: tuple) -> float:
+        w, p = get_worth_profit(x)
+        return p / w
+
+    lst.sort(key=sort_func, reverse=True)
+    result = []
+    max_profit = 0
+    for i in lst:
+        worth, profit = get_worth_profit(i)
+        if profit <= 0:
+            break
+        if worth <= money:
+            result.append(i)
+            money -= worth
+            max_profit += profit
+            if money == 0:
+                break
+
+    return max_profit, sorted(result, key=lambda x: x[0])
 
 
 def megatrader(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
@@ -139,7 +191,7 @@ def test(lots: int = 100, money: int = 10000) -> None:
         def wrapper(*args, **kwargs):
             t = perf_counter()
             res = func(*args, *kwargs)
-            print(perf_counter() - t)
+            print(f'{perf_counter() - t:.5f} s')
             return res
         return wrapper
 
@@ -152,13 +204,16 @@ def test(lots: int = 100, money: int = 10000) -> None:
         count = randint(1, 20)
         lst.append((day, name, price, count))
 
+    print('Initial data')
     for i in lst:
         print(*i)
+    print()
 
     @timed
     def megatrader_test() -> tuple[int, list[tuple]]:
         return megatrader(lst, money)
 
+    print('Megatrader')
     max_profit, result = megatrader_test()
     print(max_profit)
     for res in result:
@@ -169,11 +224,26 @@ def test(lots: int = 100, money: int = 10000) -> None:
     def brute_force_test() -> float:
         return brute_force(lst, money, len(lst))
 
-    # на больших тестовых параметрах (lots, money) следующие 3 строчки лучше комментировать
+    print('Brute force')
+
+    # на больших тестовых параметрах (lots, money) следующие 3 строки лучше комментировать
     # тк очень долго работает полный перебор
     res_brute_force = int(brute_force_test())
     assert max_profit == res_brute_force
     print(res_brute_force)
+    print()
+
+    @timed
+    def greedy_test():
+        return greedy(lst, money)
+
+    print('Greedy')
+    max_profit_greedy, result = greedy_test()
+    print(max_profit_greedy)
+    for res in result:
+        print(*res)
+    print()
+    print(f'Accuracy: {max_profit_greedy * 100 / max_profit:.2f}%')
 
 
 def main():
@@ -193,4 +263,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # test(lots=100, money=10_000)
+    # test()
