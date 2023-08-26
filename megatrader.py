@@ -62,21 +62,18 @@ from functools import cache
 
 
 @cache
-def get_worth_profit(data: tuple) -> tuple[int, int]:
+def get_worth_profit(data: tuple, days: int) -> tuple[int, int]:
     """
     Функция для подсчета затрат на покупку лота (worth) и полученной от него прибыли (profit).
     Из исходных данных в виде кортежа: day, name, price, count
-
-    :param data: (day, name, price, count)
-    :return: worth, profit
     """
-    _, _, price, count = data
+    day, _, price, count = data
     worth = int(price * 10 * count)
-    profit = count * 30 - (worth - count * 1000)
+    profit = count * (days + 30 - day) - (worth - count * 1000)
     return worth, profit
 
 
-def brute_force(lst: list[tuple], money: float, n: int) -> float:
+def brute_force(lst: list[tuple], money: float, n: int, days: int) -> float:
     """
     Функция полного перебора для подсчета максимальной прибыли, без восстановления покупок лотов.
     (тк она очень медленная, то делать в ней восстановление не вижу смысла)
@@ -87,14 +84,14 @@ def brute_force(lst: list[tuple], money: float, n: int) -> float:
     """
     if money == 0 or n == 0:
         return 0
-    worth, profit = get_worth_profit(lst[n - 1])
+    worth, profit = get_worth_profit(lst[n - 1], days)
     if worth > money:
-        return brute_force(lst, money, n - 1)
+        return brute_force(lst, money, n - 1, days)
     else:
-        return max(profit + brute_force(lst, money - worth, n - 1), brute_force(lst, money, n - 1))
+        return max(profit + brute_force(lst, money - worth, n - 1, days), brute_force(lst, money, n - 1, days))
 
 
-def greedy(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
+def greedy(lst: list[tuple], money: int, days: int) -> tuple[int, list[tuple]]:
     """
     Решение задачи с помощью жадного алгоритма (исключительно в целях эксперимента).
     Список предварительно сортируем по соотношению профит / затраты в убывающем порядке.
@@ -109,14 +106,14 @@ def greedy(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
     в связи с тем, что жадный алгоритм не обеспечивает наилучшее решение (зато работает быстро).
     """
     def sort_func(x: tuple) -> float:
-        w, p = get_worth_profit(x)
+        w, p = get_worth_profit(x, days)
         return p / w
 
     lst.sort(key=sort_func, reverse=True)
     result = []
     max_profit = 0
     for i in lst:
-        worth, profit = get_worth_profit(i)
+        worth, profit = get_worth_profit(i, days)
         if profit <= 0:
             break
         if worth <= money:
@@ -129,7 +126,7 @@ def greedy(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
     return max_profit, sorted(result, key=lambda x: x[0])
 
 
-def megatrader(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
+def megatrader(lst: list[tuple], money: int, days: int) -> tuple[int, list[tuple]]:
     """
     Решение задачи методом динамического программирования.
     Сложность алгоритма O(n * m)
@@ -152,7 +149,7 @@ def megatrader(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
 
     for i in range(len(lst)):
         for j in range(len(dp) - 1, 0, -1):
-            worth, profit = get_worth_profit(lst[i])
+            worth, profit = get_worth_profit(lst[i], days)
             if worth <= j:
                 dp[j] = max(dp[j], dp[j - worth] + profit)
 
@@ -168,7 +165,7 @@ def megatrader(lst: list[tuple], money: int) -> tuple[int, list[tuple]]:
         line = history.pop()
         if max_profit not in line:
             result.append(lst[last_line])
-            _, profit = get_worth_profit(lst[last_line])
+            _, profit = get_worth_profit(lst[last_line], days)
             max_profit -= profit
         if not history and max_profit:
             result.append(lst[0])
@@ -195,6 +192,7 @@ def test(lots: int = 100, money: int = 10000) -> None:
             return res
         return wrapper
 
+    days = lots
     lst = []
 
     for i in range(lots):
@@ -211,7 +209,7 @@ def test(lots: int = 100, money: int = 10000) -> None:
 
     @timed
     def megatrader_test() -> tuple[int, list[tuple]]:
-        return megatrader(lst, money)
+        return megatrader(lst, money, days)
 
     print('Megatrader')
     max_profit, result = megatrader_test()
@@ -222,7 +220,7 @@ def test(lots: int = 100, money: int = 10000) -> None:
 
     @timed
     def brute_force_test() -> float:
-        return brute_force(lst, money, len(lst))
+        return brute_force(lst, money, len(lst), days)
 
     print('Brute force')
 
@@ -235,7 +233,7 @@ def test(lots: int = 100, money: int = 10000) -> None:
 
     @timed
     def greedy_test():
-        return greedy(lst, money)
+        return greedy(lst, money, days)
 
     print('Greedy')
     max_profit_greedy, result = greedy_test()
@@ -247,13 +245,13 @@ def test(lots: int = 100, money: int = 10000) -> None:
 
 
 def main():
-    n, m, money = map(int, input().split())
+    days, m, money = map(int, input().split())
     lst = []
     while (s := input()) != '':
         day, name, price, count = s.split()
         lst.append((int(day), name, float(price), int(count)))
 
-    max_profit, result = megatrader(lst, money)
+    max_profit, result = megatrader(lst, money, days)
 
     print(max_profit)
     for res in result:
